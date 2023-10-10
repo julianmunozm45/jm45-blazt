@@ -49,4 +49,4 @@ Fetch random cat facts or pictures. Each request may return either a cat fact or
 More APIs showcasing Java 21 concurrency features will be added in the future.
 
 ## License
-[MIT](LICENSE) (c) 2023 julianmunozm45
+[MIT](https://github.com/julianmunozm45/jm45-blazt/blob/main/LICENCE) (c) 2023 julianmunozm45
