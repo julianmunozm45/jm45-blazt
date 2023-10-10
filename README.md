@@ -15,6 +15,14 @@ These instructions will help you get the project up and running on your local ma
 - Java 21 (Ensure you have enabled preview features)
 - Maven or Gradle
 
+### Configuration
+
+For the application to run successfully, you'll need to provide an API key for the-cat-api. Create a file named `.env` in the root of the project with the following content:
+
+```plaintext
+THE_CAT_API_KEY=<your-key>
+```
+
 ### Installing
 
 Clone the repository to your local machine:
