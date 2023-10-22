@@ -1,9 +1,9 @@
 package com.jmunoz.blazt.model;
 
-public record CatFact(String text) implements CatSurprise {
+public record CatFact(String fact) implements CatSurprise {
     @Override
     public String display() {
-        return text;
+        return fact;
     }
 
     @Override

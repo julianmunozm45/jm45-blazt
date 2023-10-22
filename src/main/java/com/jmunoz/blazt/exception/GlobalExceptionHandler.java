@@ -24,7 +24,6 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
         var status = HttpStatus.NOT_FOUND;
         var errorAttributesMap = mapToDefaultAttributes(ex, status, webRequest);
-        errorAttributesMap.put("kitty", "=^._.^= ∫");
 
         return new ResponseEntity<>(errorAttributesMap, status);
     }
