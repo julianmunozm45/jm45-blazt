@@ -1,9 +1,10 @@
 package com.jmunoz.blazt.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jmunoz.blazt.configuration.ConfigProperties;
+import com.jmunoz.blazt.http.Response;
+import com.jmunoz.blazt.http.RestClient;
+import com.jmunoz.blazt.model.CatFact;
 import com.jmunoz.blazt.model.CatPic;
 import com.jmunoz.blazt.model.CatSurprise;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,19 +22,14 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.net.http.HttpResponse.BodyHandler;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
-import static java.net.http.HttpResponse.BodyHandlers.ofString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -57,18 +53,14 @@ public class CatServiceTest {
     private ObjectMapper objectMapper;
 
     @MockBean
-    private HttpClient httpClient;
+    private RestClient restClient;
 
     @MockBean
-    private HttpResponse<String> mockHttpResponse;
-
-    private static final String SAMPLE_RESPONSE_BODY = "[{\"url\": \"http://example.com/cat.jpg\"}]";
+    private Response mockHttpResponse;
 
     @BeforeEach
     public void setUp() {
         MockitoAnnotations.openMocks(this);
-        when(mockHttpResponse.body()).thenReturn(SAMPLE_RESPONSE_BODY);
-
     }
 
 
@@ -76,113 +68,77 @@ public class CatServiceTest {
     public void testRandomCatFact() throws Exception {
 
         // Arrange
-        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
-        ArgumentCaptor<BodyHandler> bodyHandlerCaptor = ArgumentCaptor.forClass(BodyHandler.class);
+        ArgumentCaptor<String> uriCaptor = ArgumentCaptor.forClass(String.class);
 
-        when(httpClient.send(requestCaptor.capture(), bodyHandlerCaptor.capture())).thenReturn(mockHttpResponse);
-        when(mockHttpResponse.body()).thenReturn("[{\"fact\": \"Cats are curious.\"}]");
+        when(restClient.get(uriCaptor.capture())).thenReturn(mockHttpResponse);
+        when(mockHttpResponse.toList(CatFact.class)).thenReturn(List.of(new CatFact("Cats are curious.")));
 
         // Act
         CatSurprise result = catService.randomCatFact();
 
         // Assert
-        HttpRequest capturedRequest = requestCaptor.getValue();
-        assertEquals("https://cat-fact.com/facts", capturedRequest.uri().toString());
+        String capturedUri = uriCaptor.getValue();
+        assertEquals("https://cat-fact.com/facts", capturedUri);
         assertEquals("Cats are curious.", result.display());
 
-        verify(httpClient, times(1)).send(any(), eq(ofString()));
+        verify(restClient, times(1)).get(any());
     }
 
     @Test
     public void testRandomCatPic() throws Exception {
+
         // Arrange
-        String responseBody = "[{\"url\": \"http://example.com/cat.jpg\"}]";  // Modify this to resemble actual response
-        when(mockHttpResponse.body()).thenReturn(responseBody);
-        when(httpClient.send(any(), eq(ofString()))).thenReturn(mockHttpResponse);
+        ArgumentCaptor<String> uriCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Map<String, String>> headersCaptor = ArgumentCaptor.forClass(Map.class);
+
+        when(restClient.get(uriCaptor.capture())).thenReturn(mockHttpResponse);
+        when(mockHttpResponse.toList(CatPic.class)).thenReturn(List.of(new CatPic("http://example.com/cat.jpg")));
 
         // Act
         CatSurprise result = catService.randomCatPic();
 
         // Assert
-        assertNotNull(result);
-        assertEquals(new CatPic("http://example.com/cat.jpg"), result);  // Adapt this as per your actual expectation
+        String capturedUri = uriCaptor.getValue();
+        assertEquals("https://cat-pic.com/v1/images/search?limit=2", capturedUri);
+        assertEquals("Cats are curious.", result.display());
 
-        // Capturing the HttpRequest made to the httpClient and asserting it
-        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(httpClient, times(1)).send(captor.capture(), eq(ofString()));
-        HttpRequest actualRequest = captor.getValue();
+        verify(restClient, times(1)).get(eq("https://cat-fact.com/facts"));
 
-        assertEquals("cat-pic-api-key", actualRequest.headers().firstValue(CatService.THE_CAT_API_KEY_HEADER).orElse(null));
+        Map<String, String> capturedHeaders = headersCaptor.getValue();
+        assertEquals("cat-pic-api-key", capturedHeaders.values().stream().findFirst().orElse(null));
+
     }
 
     @ParameterizedTest
     @MethodSource("provideHttpErrorCases")
     public void testRandomCatFact_HttpErrors(Throwable throwable) throws Exception {
         // Arrange
-        when(httpClient.send(any(), eq(ofString()))).thenThrow(throwable);
+        when(restClient.get(any())).thenThrow(throwable);
 
         // Act & Assert
         assertThrows(throwable.getClass(), catService::randomCatFact);
 
         // Capturing the HttpRequest made to the httpClient and asserting it
-        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(httpClient, times(1)).send(captor.capture(), eq(ofString()));
-        verifyNoInteractions(objectMapper);
+        verify(restClient, times(1)).get(any());
+        verifyNoInteractions(mockHttpResponse);
     }
 
     @ParameterizedTest
     @MethodSource("provideHttpErrorCases")
     public void testRandomCatPic_HttpErrors(Throwable throwable) throws Exception {
         // Arrange
-        when(httpClient.send(any(), eq(ofString()))).thenThrow(throwable);
+        ArgumentCaptor<Map<String, String>> captor = ArgumentCaptor.forClass(Map.class);
+        when(restClient.get(any(), captor.capture())).thenThrow(throwable);
 
         // Act & Assert
         assertThrows(throwable.getClass(), catService::randomCatPic);
 
         // Capturing the HttpRequest made to the httpClient and asserting it
-        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(httpClient, times(1)).send(captor.capture(), eq(ofString()));
+        Map<String, String> capturedHeaders = captor.getValue();
+        verify(restClient, times(1)).get(any(), eq(capturedHeaders));
         verifyNoInteractions(objectMapper);
-        HttpRequest actualRequest = captor.getValue();
 
-        assertEquals("cat-pic-api-key", actualRequest.headers().firstValue(CatService.THE_CAT_API_KEY_HEADER).orElse(null));
-    }
-
-    @Test
-    public void testRandomCatFact_JacksonErrors() throws Exception {
-        // Arrange
-        String responseBody = "[{\"url\": \"http://example.com/cat.jpg\"}]";
-        when(mockHttpResponse.body()).thenReturn(responseBody);
-        when(httpClient.send(any(), eq(ofString()))).thenReturn(mockHttpResponse);
-        doThrow(JsonProcessingException.class).when(objectMapper).readValue(eq(responseBody), any(TypeReference.class));
-
-        // Act & Assert
-        assertThrows(Exception.class, catService::randomCatFact);
-
-        // Capturing the HttpRequest made to the httpClient and asserting it
-        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(httpClient, times(1)).send(captor.capture(), eq(ofString()));
-        verify(objectMapper, times(1)).readValue(eq(responseBody), any(TypeReference.class));
-    }
-
-    @Test
-    public void testRandomCatPic_JacksonErrors() throws Exception {
-        // Arrange
-        String responseBody = "[{\"url\": \"http://example.com/cat.jpg\"}]";
-        when(mockHttpResponse.body()).thenReturn(responseBody);
-        when(httpClient.send(any(), eq(ofString()))).thenReturn(mockHttpResponse);
-        doThrow(JsonProcessingException.class).when(objectMapper).readValue(eq(responseBody), any(TypeReference.class));
-
-        // Act & Assert
-        assertThrows(Exception.class, catService::randomCatPic);
-
-        // Capturing the HttpRequest made to the httpClient and asserting it
-        ArgumentCaptor<HttpRequest> captor = ArgumentCaptor.forClass(HttpRequest.class);
-        verify(httpClient, times(1)).send(captor.capture(), eq(ofString()));
-        verify(objectMapper, times(1)).readValue(eq(responseBody), any(TypeReference.class));
-        HttpRequest actualRequest = captor.getValue();
-
-        assertEquals("cat-pic-api-key", actualRequest.headers().firstValue(CatService.THE_CAT_API_KEY_HEADER).orElse(null));
+        assertEquals("cat-pic-api-key", capturedHeaders.values().stream().findFirst().orElse(null));
     }
 
     private static Stream<Arguments> provideHttpErrorCases() {

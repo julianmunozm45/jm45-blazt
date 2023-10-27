@@ -1,9 +1,8 @@
 package com.jmunoz.blazt.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jmunoz.blazt.configuration.ConfigProperties;
 import com.jmunoz.blazt.exception.CatSurpriseException;
+import com.jmunoz.blazt.http.RestClient;
 import com.jmunoz.blazt.model.CatFact;
 import com.jmunoz.blazt.model.CatPic;
 import com.jmunoz.blazt.model.CatSurprise;
@@ -11,13 +10,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
-
-import static java.net.http.HttpResponse.BodyHandlers.ofString;
 
 @Service
 @RequiredArgsConstructor
@@ -25,35 +20,23 @@ public class CatService {
 
     public static final String THE_CAT_API_KEY_HEADER = "x-api-key";
     private final ConfigProperties configProperties;
-    private final HttpClient httpClient;
-    private final ObjectMapper objectMapper;
+    private final RestClient restClient;
 
     public CatSurprise randomCatFact() throws InterruptedException, IOException {
         addRandomDelay(); // adding random delay since this one is usually faster
+        var uri = String.format("%s/facts", configProperties.getCatFactsApiBaseUrl());
+        var response = restClient.get(uri);
 
-        var request = HttpRequest.newBuilder()
-                .uri(URI.create(String.format("%s/facts", configProperties.getCatFactsApiBaseUrl())))
-                .GET()
-                .build();
-
-        var response = httpClient.send(request, ofString());
-        var k = response.body();
-        var catFacts = objectMapper.readValue(response.body(), new TypeReference<List<CatFact>>() {
-        });
+        var catFacts = response.toList(CatFact.class);
 
         return randomizeSurprise(catFacts);
     }
 
     public CatSurprise randomCatPic() throws IOException, InterruptedException {
-        var request = HttpRequest.newBuilder()
-                .uri(URI.create(String.format("%s/v1/images/search?limit=2", configProperties.getTheCatApiBaseUrl())))
-                .header(THE_CAT_API_KEY_HEADER, configProperties.getTheCatApiKey())
-                .GET()
-                .build();
+        var uri = String.format("%s/v1/images/search?limit=2", configProperties.getTheCatApiBaseUrl());
+        var response = restClient.get(uri, Map.of(THE_CAT_API_KEY_HEADER, configProperties.getTheCatApiKey()));
 
-        var response = httpClient.send(request, ofString());
-        var catPics = objectMapper.readValue(response.body(), new TypeReference<List<CatPic>>() {
-        });
+        var catPics = response.toList(CatPic.class);
 
         return randomizeSurprise(catPics);
     }
