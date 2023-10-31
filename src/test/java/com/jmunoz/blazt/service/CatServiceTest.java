@@ -1,6 +1,5 @@
 package com.jmunoz.blazt.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jmunoz.blazt.configuration.ConfigProperties;
 import com.jmunoz.blazt.http.Response;
 import com.jmunoz.blazt.http.RestClient;
@@ -17,8 +16,6 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
-import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.io.IOException;
@@ -35,22 +32,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-@SuppressWarnings({"unchecked", "rawtypes"})
+@SuppressWarnings({"unchecked"})
 @SpringBootTest
 @ActiveProfiles("test")
 public class CatServiceTest {
-
-    @Autowired
-    ApplicationContext applicationContext;
 
     @Autowired
     private CatService catService;
 
     @Autowired
     private ConfigProperties configProperties;
-
-    @SpyBean
-    private ObjectMapper objectMapper;
 
     @MockBean
     private RestClient restClient;
@@ -91,7 +82,7 @@ public class CatServiceTest {
         ArgumentCaptor<String> uriCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Map<String, String>> headersCaptor = ArgumentCaptor.forClass(Map.class);
 
-        when(restClient.get(uriCaptor.capture())).thenReturn(mockHttpResponse);
+        when(restClient.get(uriCaptor.capture(), headersCaptor.capture())).thenReturn(mockHttpResponse);
         when(mockHttpResponse.toList(CatPic.class)).thenReturn(List.of(new CatPic("http://example.com/cat.jpg")));
 
         // Act
@@ -100,13 +91,12 @@ public class CatServiceTest {
         // Assert
         String capturedUri = uriCaptor.getValue();
         assertEquals("https://cat-pic.com/v1/images/search?limit=2", capturedUri);
-        assertEquals("Cats are curious.", result.display());
+        assertEquals("http://example.com/cat.jpg", result.display());
 
-        verify(restClient, times(1)).get(eq("https://cat-fact.com/facts"));
+        verify(restClient, times(1)).get(eq("https://cat-pic.com/v1/images/search?limit=2"), any());
 
         Map<String, String> capturedHeaders = headersCaptor.getValue();
         assertEquals("cat-pic-api-key", capturedHeaders.values().stream().findFirst().orElse(null));
-
     }
 
     @ParameterizedTest
@@ -136,7 +126,7 @@ public class CatServiceTest {
         // Capturing the HttpRequest made to the httpClient and asserting it
         Map<String, String> capturedHeaders = captor.getValue();
         verify(restClient, times(1)).get(any(), eq(capturedHeaders));
-        verifyNoInteractions(objectMapper);
+        verifyNoInteractions(mockHttpResponse);
 
         assertEquals("cat-pic-api-key", capturedHeaders.values().stream().findFirst().orElse(null));
     }

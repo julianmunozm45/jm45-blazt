@@ -19,8 +19,9 @@ import java.util.Random;
 public class CatService {
 
     public static final String THE_CAT_API_KEY_HEADER = "x-api-key";
-    private final ConfigProperties configProperties;
+
     private final RestClient restClient;
+    private final ConfigProperties configProperties;
 
     public CatSurprise randomCatFact() throws InterruptedException, IOException {
         addRandomDelay(); // adding random delay since this one is usually faster

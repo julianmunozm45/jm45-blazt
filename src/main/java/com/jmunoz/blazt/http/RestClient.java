@@ -36,7 +36,6 @@ public class RestClient {
 
         var httpResponse = httpClient.send(request, ofString());
         return new Response(httpResponse, objectMapper);
-
     }
 
     public Response get(String uri) throws IOException, InterruptedException {
