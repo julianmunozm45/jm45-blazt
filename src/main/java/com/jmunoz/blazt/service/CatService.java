@@ -2,46 +2,46 @@ package com.jmunoz.blazt.service;
 
 import com.jmunoz.blazt.configuration.ConfigProperties;
 import com.jmunoz.blazt.exception.CatSurpriseException;
-import com.jmunoz.blazt.http.RestClient;
-import com.jmunoz.blazt.model.CatFact;
+import com.jmunoz.blazt.model.CatFactResponse;
 import com.jmunoz.blazt.model.CatPic;
 import com.jmunoz.blazt.model.CatSurprise;
+import kong.unirest.core.GenericType;
+import kong.unirest.core.Unirest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 
 @Service
 @RequiredArgsConstructor
 public class CatService {
 
-    public static final String THE_CAT_API_KEY_HEADER = "x-api-key";
-
-    private final RestClient restClient;
     private final ConfigProperties configProperties;
 
-    public CatSurprise randomCatFact() throws InterruptedException, IOException {
+    public CatSurprise randomCatFact() throws InterruptedException {
         addRandomDelay(); // adding random delay since this one is usually faster
-        var uri = String.format("%s/facts", configProperties.getCatFactsApiBaseUrl());
-        var response = restClient.get(uri);
+        var uri = String.format("%s/facts?limit=10", configProperties.getCatFactsApiBaseUrl());
 
-        var catFacts = response.toList(CatFact.class);
+        var catFacts = Unirest.get(uri)
+                .asObject(CatFactResponse.class)
+                .getBody()
+                .data();
 
         return randomizeSurprise(catFacts);
     }
 
-    public CatSurprise randomCatPic() throws IOException, InterruptedException {
-        var uri = String.format("%s/v1/images/search?limit=2", configProperties.getTheCatApiBaseUrl());
-        var response = restClient.get(uri, Map.of(THE_CAT_API_KEY_HEADER, configProperties.getTheCatApiKey()));
+    public CatSurprise randomCatPic() {
+        var uri = String.format("%s/v1/images/search?limit=1", configProperties.getTheCatApiBaseUrl());
 
-        var catPics = response.toList(CatPic.class);
+        var catPics = Unirest.get(uri)
+                .header(configProperties.getTheCatApiKeyHeader(), configProperties.getTheCatApiKey())
+                .asObject(new GenericType<List<CatPic>>() {
+                })
+                .getBody();
 
         return randomizeSurprise(catPics);
     }
-
 
     private CatSurprise randomizeSurprise(List<? extends CatSurprise> meowList) {
         if (meowList != null && !meowList.isEmpty()) {

@@ -24,7 +24,11 @@ repositories {
 }
 
 dependencies {
+    implementation platform('com.konghq:unirest-java-bom:4.1.1')
+    implementation 'com.konghq:unirest-java-core'
+    implementation 'com.konghq:unirest-objectmapper-jackson'
     implementation 'org.springframework.boot:spring-boot-starter-web'
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

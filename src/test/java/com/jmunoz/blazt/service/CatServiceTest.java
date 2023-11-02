@@ -1,35 +1,41 @@
 package com.jmunoz.blazt.service;
 
 import com.jmunoz.blazt.configuration.ConfigProperties;
-import com.jmunoz.blazt.http.Response;
-import com.jmunoz.blazt.http.RestClient;
 import com.jmunoz.blazt.model.CatFact;
+import com.jmunoz.blazt.model.CatFactResponse;
 import com.jmunoz.blazt.model.CatPic;
 import com.jmunoz.blazt.model.CatSurprise;
+import io.micrometer.observation.Observation;
+import kong.unirest.core.GenericType;
+import kong.unirest.core.GetRequest;
+import kong.unirest.core.HttpResponse;
+import kong.unirest.core.Unirest;
+import kong.unirest.core.UnirestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
-import org.mockito.MockitoAnnotations;
+import org.mockito.MockedStatic;
+import org.mockito.stubbing.OngoingStubbing;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 
-import java.io.IOException;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @SuppressWarnings({"unchecked"})
@@ -43,98 +49,105 @@ public class CatServiceTest {
     @Autowired
     private ConfigProperties configProperties;
 
-    @MockBean
-    private RestClient restClient;
 
     @MockBean
-    private Response mockHttpResponse;
+    private HttpResponse mockHttpResponse;
 
     @BeforeEach
     public void setUp() {
-        MockitoAnnotations.openMocks(this);
+//        MockitoAnnotations.openMocks(this);
     }
 
 
     @Test
     public void testRandomCatFact() throws Exception {
+        try (MockedStatic<Unirest> mockedUnirest = mockStatic(Unirest.class)) {
+            // Arrange
+            CatFactResponse mockCatFactResponse = new CatFactResponse(List.of(new CatFact("Cats are curious.")));
+            HttpResponse<CatFactResponse> mockResponse = mock(HttpResponse.class);
+            GetRequest mockGetRequest = mock(GetRequest.class);
 
-        // Arrange
-        ArgumentCaptor<String> uriCaptor = ArgumentCaptor.forClass(String.class);
+            when(mockGetRequest.asObject(eq(CatFactResponse.class))).thenReturn(mockResponse);
+            when(mockResponse.getBody()).thenReturn(mockCatFactResponse);
 
-        when(restClient.get(uriCaptor.capture())).thenReturn(mockHttpResponse);
-        when(mockHttpResponse.toList(CatFact.class)).thenReturn(List.of(new CatFact("Cats are curious.")));
+            mockedUnirest.when(() -> Unirest.get(anyString())).thenReturn(mockGetRequest);
 
-        // Act
-        CatSurprise result = catService.randomCatFact();
+            // Act
+            CatSurprise result = catService.randomCatFact();
 
-        // Assert
-        String capturedUri = uriCaptor.getValue();
-        assertEquals("https://cat-fact.com/facts", capturedUri);
-        assertEquals("Cats are curious.", result.display());
+            // Assert
+            assertEquals("Cats are curious.", result.display());
 
-        verify(restClient, times(1)).get(any());
+            mockedUnirest.verify(() -> Unirest.get("https://cat-fact.com/facts?limit=10"), times(1));
+        }
     }
 
     @Test
-    public void testRandomCatPic() throws Exception {
+    public void testRandomCatPic() {
+        try (MockedStatic<Unirest> mockedUnirest = mockStatic(Unirest.class)) {
+            // Arrange
+            List<CatPic> mockCatPicsResponse = List.of(new CatPic("http://example.com/cat.jpg"));
+            HttpResponse<List<CatPic>> mockResponse = mock(HttpResponse.class);
+            GetRequest mockGetRequest = mock(GetRequest.class);
 
-        // Arrange
-        ArgumentCaptor<String> uriCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<Map<String, String>> headersCaptor = ArgumentCaptor.forClass(Map.class);
+            ArgumentCaptor<String> headerCaptor = ArgumentCaptor.forClass(String.class);
+            ArgumentCaptor<String> headerValueCaptor = ArgumentCaptor.forClass(String.class);
 
-        when(restClient.get(uriCaptor.capture(), headersCaptor.capture())).thenReturn(mockHttpResponse);
-        when(mockHttpResponse.toList(CatPic.class)).thenReturn(List.of(new CatPic("http://example.com/cat.jpg")));
+            when(mockGetRequest.header(headerCaptor.capture(), headerValueCaptor.capture())).thenReturn(mockGetRequest);
+            when(mockGetRequest.asObject(any(GenericType.class))).thenReturn(mockResponse);
+            when(mockResponse.getBody()).thenReturn(mockCatPicsResponse);
 
-        // Act
-        CatSurprise result = catService.randomCatPic();
+            mockedUnirest.when(() -> Unirest.get(anyString())).thenReturn(mockGetRequest);
 
-        // Assert
-        String capturedUri = uriCaptor.getValue();
-        assertEquals("https://cat-pic.com/v1/images/search?limit=2", capturedUri);
-        assertEquals("http://example.com/cat.jpg", result.display());
+            // Act
+            CatSurprise result = catService.randomCatPic();
 
-        verify(restClient, times(1)).get(eq("https://cat-pic.com/v1/images/search?limit=2"), any());
+            // Assert
+            assertEquals("http://example.com/cat.jpg", result.display());
+            assertEquals("some-api-key-h", headerCaptor.getValue());
+            assertEquals("cat-pic-api-key", headerValueCaptor.getValue());
 
-        Map<String, String> capturedHeaders = headersCaptor.getValue();
-        assertEquals("cat-pic-api-key", capturedHeaders.values().stream().findFirst().orElse(null));
+            mockedUnirest.verify(() -> Unirest.get("https://cat-pic.com/v1/images/search?limit=1"), times(1));
+        }
     }
 
     @ParameterizedTest
     @MethodSource("provideHttpErrorCases")
-    public void testRandomCatFact_HttpErrors(Throwable throwable) throws Exception {
-        // Arrange
-        when(restClient.get(any())).thenThrow(throwable);
+    public void testRandomCatFact_HttpErrors(
+            Observation.CheckedFunction<CatService, CatSurprise, Throwable> catSurpriseFn,
+            Function<GetRequest, OngoingStubbing<?>> asObjectStubbingFn,
+            String catApiUrl
+    ) {
+        try (MockedStatic<Unirest> mockedUnirest = mockStatic(Unirest.class)) {
+            // Arrange
+            GetRequest mockGetRequest = mock(GetRequest.class);
+            asObjectStubbingFn.apply(mockGetRequest);
 
-        // Act & Assert
-        assertThrows(throwable.getClass(), catService::randomCatFact);
+            mockedUnirest.when(() -> Unirest.get(anyString())).thenReturn(mockGetRequest);
 
-        // Capturing the HttpRequest made to the httpClient and asserting it
-        verify(restClient, times(1)).get(any());
-        verifyNoInteractions(mockHttpResponse);
+            // Act & Assert
+            assertThrows(UnirestException.class, () -> catSurpriseFn.apply(catService));
+
+            mockedUnirest.verify(() -> Unirest.get(eq(catApiUrl)), times(1));
+        }
     }
 
-    @ParameterizedTest
-    @MethodSource("provideHttpErrorCases")
-    public void testRandomCatPic_HttpErrors(Throwable throwable) throws Exception {
-        // Arrange
-        ArgumentCaptor<Map<String, String>> captor = ArgumentCaptor.forClass(Map.class);
-        when(restClient.get(any(), captor.capture())).thenThrow(throwable);
-
-        // Act & Assert
-        assertThrows(throwable.getClass(), catService::randomCatPic);
-
-        // Capturing the HttpRequest made to the httpClient and asserting it
-        Map<String, String> capturedHeaders = captor.getValue();
-        verify(restClient, times(1)).get(any(), eq(capturedHeaders));
-        verifyNoInteractions(mockHttpResponse);
-
-        assertEquals("cat-pic-api-key", capturedHeaders.values().stream().findFirst().orElse(null));
-    }
-
+    // Separated tests will be more readable. I'm just plying around and exploiting Java 8+ features here.
     private static Stream<Arguments> provideHttpErrorCases() {
+        // TODO jm-3: Use a checked function from an explicit dependency or my own
+        Observation.CheckedFunction<CatService, CatSurprise, Throwable> catFactFn = CatService::randomCatFact;
+        Observation.CheckedFunction<CatService, CatSurprise, Throwable> catPicFn = CatService::randomCatPic;
+
+        UnirestException unirestException = new UnirestException("A timeout occurred");
+        Function<GetRequest, OngoingStubbing<?>> catFactStubbing =
+                (GetRequest getRequest) -> when(getRequest.asObject(eq(CatFactResponse.class))).thenThrow(unirestException);
+        Function<GetRequest, OngoingStubbing<?>> catPicStubbing = (GetRequest getRequest) -> {
+            when(getRequest.header(eq("some-api-key-h"), eq("cat-pic-api-key"))).thenReturn(getRequest);
+            return when(getRequest.asObject(any(GenericType.class))).thenThrow(unirestException);
+        };
         return Stream.of(
-                Arguments.of(new IOException("Simulated IOException")),
-                Arguments.of(new InterruptedException("Simulated InterruptedException"))
+                Arguments.of(catFactFn, catFactStubbing, "https://cat-fact.com/facts?limit=10"),
+                Arguments.of(catPicFn, catPicStubbing, "https://cat-pic.com/v1/images/search?limit=1")
         );
     }
 }
