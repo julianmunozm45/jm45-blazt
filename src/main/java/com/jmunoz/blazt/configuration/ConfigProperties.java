@@ -17,6 +17,7 @@ public class ConfigProperties {
 
     private String catFactsApiBaseUrl;
     private String theCatApiBaseUrl;
+    private String theCatApiKeyHeader;
     private int randomDelayMillis;
 
 }

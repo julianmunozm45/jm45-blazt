@@ -1,74 +1,102 @@
 package com.jmunoz.blazt.controller;
 
-import com.jmunoz.blazt.configuration.ConfigProperties;
+import com.jmunoz.blazt.exception.CatSurpriseException;
 import com.jmunoz.blazt.model.CatFact;
 import com.jmunoz.blazt.model.CatPic;
 import com.jmunoz.blazt.model.CatSurprise;
+import com.jmunoz.blazt.service.CatService;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.DisabledInNativeImage;
-import org.mockito.Mockito;
+import org.skyscreamer.jsonassert.JSONAssert;
+import org.skyscreamer.jsonassert.JSONCompareMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
-import java.util.List;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-
-@SpringBootTest
-//@EnabledInNativeImage
+@WebMvcTest(CatController.class)
 public class CatControllerTest {
 
     @Autowired
-    CatController catController;
+    private MockMvc mockMvc;
 
     @MockBean
-    RestTemplate restTemplate;
-
-    @MockBean
-    ConfigProperties configProperties;
+    private CatService catService;
 
     @Test
-    @DisabledInNativeImage
-    public void testCatFact() throws Exception {
-        Mockito.when(configProperties.getRandomDelayMillis()).thenReturn(500);
-        Mockito.when(configProperties.getCatFactsApiBaseUrl()).thenReturn("https://cat-fact.com");
-        Mockito.when(restTemplate.exchange(
-                        eq("https://cat-fact.com/facts"),
-                        eq(HttpMethod.GET),
-                        eq(null),
-                        eq(new ParameterizedTypeReference<List<CatFact>>() {
-                        })))
-                .thenReturn(ResponseEntity.ok(List.of(new CatFact("Cats are curious."))));
+    public void testGetFirstCat_FactIsFaster() throws Exception {
+        CatSurprise fact = new CatFact("Cats are awesome!");
 
-        CatSurprise catSurprise = catController.getFirstCat();
+        when(catService.randomCatFact()).thenReturn(fact);
 
-        assertEquals("fact", catSurprise.type());
-        assertEquals("Cats are curious.", catSurprise.display());
+        // Simulating that pic service fails (or is slower)
+        when(catService.randomCatPic()).thenThrow(new RuntimeException("Failed to fetch cat pics"));
+
+        ResultActions result = mockMvc.perform(get("/cats/pic-or-fact"));
+
+        result.andExpect(status().isOk())
+                .andExpect(content().string("""
+                        {"display":"Cats are awesome!","type":"fact"}"""));
     }
 
     @Test
-    @DisabledInNativeImage
-    public void testCatPic() throws Exception {
-        Mockito.when(configProperties.getTheCatApiBaseUrl()).thenReturn("https://cat-pic.com");
-        Mockito.when(configProperties.getTheCatApiKey()).thenReturn("cat-pic-api-key");
-        Mockito.when(restTemplate.exchange(
-                        eq("https://cat-pic.com/v1/images/search?limit=2"),
-                        eq(HttpMethod.GET),
-                        any(),
-                        eq(new ParameterizedTypeReference<List<CatPic>>() {
-                        })))
-                .thenReturn(ResponseEntity.ok(List.of(new CatPic("http://example.com/cat.jpg"))));
+    public void testGetFirstCat_PicIsFaster() throws Exception {
+        CatSurprise pic = new CatPic("somePicUrl");
 
-        CatSurprise catSurprise = catController.getFirstCat();
+        // Simulating that fact service fails (or is slower)
+        when(catService.randomCatFact()).thenThrow(new InterruptedException("Failed to fetch cat facts"));
 
-        assertEquals("picture", catSurprise.type());
-        assertEquals("http://example.com/cat.jpg", catSurprise.display());
+        when(catService.randomCatPic()).thenReturn(pic);
+
+        ResultActions result = mockMvc.perform(get("/cats/pic-or-fact"));
+
+        result.andExpect(status().isOk())
+                .andExpect(content().string("""
+                        {"display":"somePicUrl","type":"picture"}"""));
     }
+
+    @Test
+    public void testGetFirstCat_CatSurpriseException() throws Exception {
+        // Simulating that both services fail
+        when(catService.randomCatFact()).thenThrow(new CatSurpriseException("Failed to fetch your cat surprise"));
+        when(catService.randomCatPic()).thenThrow(new CatSurpriseException("Failed to fetch your cat surprise"));
+
+        ResultActions result = mockMvc.perform(get("/cats/pic-or-fact"));
+
+        String expectedJson = """
+                {"status":404,"error":"Not Found",\
+                "message":"Failed to fetch your cat surprise"}""";
+        String actualJson = result.andExpect(status().isNotFound())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JSONAssert.assertEquals(expectedJson, actualJson, JSONCompareMode.LENIENT);
+    }
+
+    @Test
+    public void testGetFirstCat_NestedInterruptedException() throws Exception {
+        // Simulating that both services fail
+        RuntimeException interruptedException = new RuntimeException(new InterruptedException("Failed to fetch your cat surprise in time"));
+        when(catService.randomCatFact()).thenThrow(interruptedException);
+        when(catService.randomCatPic()).thenThrow(interruptedException);
+
+        ResultActions result = mockMvc.perform(get("/cats/pic-or-fact"));
+
+        String expectedJson = """
+                {"status":500,"error":"Internal Server Error",\
+                "message":"java.lang.RuntimeException: java.lang.InterruptedException: Failed to fetch your cat surprise in time"}""";
+        String actualJson = result.andExpect(status().is5xxServerError())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        JSONAssert.assertEquals(expectedJson, actualJson, JSONCompareMode.LENIENT);
+    }
+
 }
