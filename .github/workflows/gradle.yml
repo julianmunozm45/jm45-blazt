@@ -38,4 +38,4 @@ jobs:
       run: chmod +x gradlew
 
     - name: Run Gradle tests with 'test' profile
-      run: ./gradlew test --args='--spring.profiles.active=test'
+      run: ./gradlew test -Pspring.profiles.active=test
