@@ -38,7 +38,6 @@ import static org.mockito.Mockito.when;
 
 @SuppressWarnings({"unchecked"})
 @SpringBootTest
-@ActiveProfiles("test")
 public class CatServiceTest {
 
     @Autowired
