@@ -16,9 +16,6 @@ on:
 permissions:
   contents: read
 
-env:
-  THE_CAT_API_KEY: ${{ secrets.THE_CAT_API_KEY }}
-
 jobs:
   build:
 
@@ -39,7 +36,7 @@ jobs:
       run: chmod +x gradlew
 
     - name: Run Gradle tests with 'test' profile
-      run: ./gradlew test -Pspring.profiles.active=test
+      run: ./gradlew build test -Pspring.profiles.active=test
 
     - name: Upload test results
       if: always()
