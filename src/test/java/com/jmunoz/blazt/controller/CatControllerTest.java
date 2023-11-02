@@ -35,7 +35,7 @@ public class CatControllerTest {
         when(catService.randomCatFact()).thenReturn(fact);
 
         // Simulating that pic service fails (or is slower)
-        when(catService.randomCatPic()).thenThrow(new InterruptedException("Failed to fetch cat facts"));
+        when(catService.randomCatPic()).thenThrow(new RuntimeException("Failed to fetch cat pics"));
 
         ResultActions result = mockMvc.perform(get("/cats/pic-or-fact"));
 
@@ -49,7 +49,7 @@ public class CatControllerTest {
         CatSurprise pic = new CatPic("somePicUrl");
 
         // Simulating that fact service fails (or is slower)
-        when(catService.randomCatFact()).thenThrow(new InterruptedException("Failed to fetch cat pics"));
+        when(catService.randomCatFact()).thenThrow(new InterruptedException("Failed to fetch cat facts"));
 
         when(catService.randomCatPic()).thenReturn(pic);
 
@@ -80,16 +80,17 @@ public class CatControllerTest {
     }
 
     @Test
-    public void testGetFirstCat_InterruptedException() throws Exception {
+    public void testGetFirstCat_NestedInterruptedException() throws Exception {
         // Simulating that both services fail
-        when(catService.randomCatFact()).thenThrow(new InterruptedException("Failed to fetch your cat surprise in time"));
-        when(catService.randomCatPic()).thenThrow(new InterruptedException("Failed to fetch your cat surprise in time"));
+        RuntimeException interruptedException = new RuntimeException(new InterruptedException("Failed to fetch your cat surprise in time"));
+        when(catService.randomCatFact()).thenThrow(interruptedException);
+        when(catService.randomCatPic()).thenThrow(interruptedException);
 
         ResultActions result = mockMvc.perform(get("/cats/pic-or-fact"));
 
         String expectedJson = """
                 {"status":500,"error":"Internal Server Error",\
-                "message":"java.lang.InterruptedException: Failed to fetch your cat surprise in time"}""";
+                "message":"java.lang.RuntimeException: java.lang.InterruptedException: Failed to fetch your cat surprise in time"}""";
         String actualJson = result.andExpect(status().is5xxServerError())
                 .andReturn()
                 .getResponse()

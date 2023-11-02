@@ -11,7 +11,6 @@ import kong.unirest.core.GetRequest;
 import kong.unirest.core.HttpResponse;
 import kong.unirest.core.Unirest;
 import kong.unirest.core.UnirestException;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -21,7 +20,6 @@ import org.mockito.MockedStatic;
 import org.mockito.stubbing.OngoingStubbing;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.util.List;
@@ -48,16 +46,6 @@ public class CatServiceTest {
 
     @Autowired
     private ConfigProperties configProperties;
-
-
-    @MockBean
-    private HttpResponse mockHttpResponse;
-
-    @BeforeEach
-    public void setUp() {
-//        MockitoAnnotations.openMocks(this);
-    }
-
 
     @Test
     public void testRandomCatFact() throws Exception {
