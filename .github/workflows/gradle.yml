@@ -16,6 +16,9 @@ on:
 permissions:
   contents: read
 
+env:
+  THE_CAT_API_KEY: ${{ secrets.THE_CAT_API_KEY }}
+
 jobs:
   build:
 
