@@ -1,11 +1,11 @@
 package com.jmunoz.blazt.service;
 
 import com.jmunoz.blazt.configuration.ConfigProperties;
+import com.jmunoz.blazt.exception.functional.CheckedFunction;
 import com.jmunoz.blazt.model.CatFact;
 import com.jmunoz.blazt.model.CatFactResponse;
 import com.jmunoz.blazt.model.CatPic;
 import com.jmunoz.blazt.model.CatSurprise;
-import io.micrometer.observation.Observation;
 import kong.unirest.core.GenericType;
 import kong.unirest.core.GetRequest;
 import kong.unirest.core.HttpResponse;
@@ -100,7 +100,7 @@ public class CatServiceTest {
     @ParameterizedTest
     @MethodSource("provideHttpErrorCases")
     public void testRandomCatFact_HttpErrors(
-            Observation.CheckedFunction<CatService, CatSurprise, Throwable> catSurpriseFn,
+            CheckedFunction<CatService, CatSurprise, Throwable> catSurpriseFn,
             Function<GetRequest, OngoingStubbing<?>> asObjectStubbingFn,
             String catApiUrl
     ) {
@@ -120,9 +120,8 @@ public class CatServiceTest {
 
     // Separated tests will be more readable. I'm just plying around and exploiting Java 8+ features here.
     private static Stream<Arguments> provideHttpErrorCases() {
-        // TODO jm-3: Use a checked function from an explicit dependency or my own
-        Observation.CheckedFunction<CatService, CatSurprise, Throwable> catFactFn = CatService::randomCatFact;
-        Observation.CheckedFunction<CatService, CatSurprise, Throwable> catPicFn = CatService::randomCatPic;
+        CheckedFunction<CatService, CatSurprise, Throwable> catFactFn = CatService::randomCatFact;
+        CheckedFunction<CatService, CatSurprise, Throwable> catPicFn = CatService::randomCatPic;
 
         UnirestException unirestException = new UnirestException("A timeout occurred");
         Function<GetRequest, OngoingStubbing<?>> catFactStubbing =
